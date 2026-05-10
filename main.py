@@ -235,7 +235,7 @@ def process_url(file_url: str, output_dir: str) -> None:
 
     # 4. Trigger delete workflow (fire and forget)
     trigger_workflow(DELETE_WORKFLOW_FILENAME, {"folder_name": folder_name})
-    print(f"🗑️  Delete workflow triggered – folder will be removed shortly.\n")
+    print(f"🗑  Delete workflow triggered – folder will be removed shortly.\n")
 
     print(f"✅ Completed {file_url}\n")
 
