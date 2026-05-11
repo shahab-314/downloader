@@ -29,26 +29,58 @@ jobs:
             -o "${{ github.event.inputs.folder_name }}/downloaded_file" \
             "${{ github.event.inputs.file_url }}"
 
-      - name: Check file size and either split or rename
+      - name: Split into 20MB chunks (for 3GB file)
         run: |
           FOLDER="${{ github.event.inputs.folder_name }}"
           FILE_PATH="$FOLDER/downloaded_file"
           SIZE_MB=$(du -m "$FILE_PATH" | cut -f1)
 
-          if [ "$SIZE_MB" -lt 95 ]; then
-            echo "File is ${SIZE_MB}MB (<95MB) – keeping as single file named after folder"
+          if [ "$SIZE_MB" -lt 20 ]; then
+            echo "File is ${SIZE_MB}MB (<20MB) – keeping as single file"
             mv "$FILE_PATH" "$FOLDER/$FOLDER"
           else
-            echo "File is ${SIZE_MB}MB (>=95MB) – splitting into 95MB chunks"
+            echo "File is ${SIZE_MB}MB – splitting into 20MB chunks"
             mkdir -p "$FOLDER/chunks"
-            split -b 95M "$FILE_PATH" "$FOLDER/chunks/chunk_"
+            split -b 20M "$FILE_PATH" "$FOLDER/chunks/chunk_"
             rm "$FILE_PATH"
           fi
 
-      - name: Commit and push the new folder
+      - name: Configure git
+        run: |
+          git config http.postBuffer 524288000
+          git config http.lowSpeedLimit 0
+          git config http.lowSpeedTime 999999
+
+      - name: Commit and push in tiny batches (fixed path)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${{ github.event.inputs.folder_name }}"
-          git commit -m "Add ${{ github.event.inputs.folder_name }} from ${{ github.event.inputs.file_url }}" || echo "No changes"
-          git push
+          
+          FOLDER="${{ github.event.inputs.folder_name }}"
+          
+          if [ -f "$FOLDER/$FOLDER" ]; then
+            git add "$FOLDER/$FOLDER"
+            git commit -m "Add $FOLDER"
+            git push
+            exit 0
+          fi
+          
+          if [ -d "$FOLDER/chunks" ]; then
+            # استفاده از مسیر درست بدون cd
+            chunks=($(ls "$FOLDER/chunks"/chunk_* 2>/dev/null | xargs -n1 basename))
+            total=${#chunks[@]}
+            batch_size=3
+            
+            for ((i=0; i<total; i+=batch_size)); do
+              for ((j=0; j<batch_size && i+j<total; j++)); do
+                git add "$FOLDER/chunks/${chunks[i+j]}"
+              done
+              git commit -m "Batch $((i/batch_size+1)) for $FOLDER"
+              git push
+              sleep 2
+            done
+            
+            git add "$FOLDER"
+            git commit -m "Finalize $FOLDER" || true
+            git push
+          fi
