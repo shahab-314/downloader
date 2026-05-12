@@ -70,7 +70,7 @@ def wait_for_folder_to_appear(folder_name: str, timeout_seconds: int = 3600):
         try:
             repo.get_contents(folder_name, ref=repo.default_branch)
             print(f"✅ Folder '{folder_name}' found in repository.")
-            time.sleep(60)  # extra delay for GitHub to be ready
+            time.sleep(900)  # extra delay for GitHub to be ready
             latest_commit = repo.get_commits(sha=repo.default_branch)[0]
             return latest_commit.sha
         except:
